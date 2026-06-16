@@ -14,7 +14,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 import logging
 
@@ -38,18 +38,8 @@ def get_domain_from_url(url):
     return parsed.netloc
 
 
-def get_main_domain(domain):
-    """提取主域名（如 1295.marcopolo.com.cn -> marcopolo.com.cn）"""
-    parts = domain.split('.')
-    if len(parts) >= 2:
-        if len(parts) >= 3 and parts[-2] in ['co', 'com', 'org', 'net']:
-            return '.'.join(parts[-3:])
-        return '.'.join(parts[-2:])
-    return domain
-
-
 def is_external_link(link_url, start_url):
-    """判断是否为外部链接（排除目标域名及所有子域名）"""
+    """判断是否为外部链接（只允许完全相同的域名，子域名也算外部）"""
     link_parsed = urlparse(link_url)
     start_parsed = urlparse(start_url)
 
@@ -59,14 +49,11 @@ def is_external_link(link_url, start_url):
     link_domain = link_parsed.netloc
     start_domain = start_parsed.netloc
 
+    # 只有完全相同的域名才算内部链接
     if link_domain == start_domain:
         return False
 
-    main_domain = get_main_domain(start_domain)
-
-    if link_domain.endswith('.' + main_domain) or link_domain == main_domain:
-        return False
-
+    # 子域名和外部域名都算外部链接
     return True
 
 
@@ -84,7 +71,7 @@ def clean_directory(base_dir):
 
 
 def download_js_file(url, save_dir, existing_hashes, existing_filenames):
-    """下载 JS 文件，支持去重"""
+    """下载 JS 文件，先按文件名去重，再按 MD5 去重"""
     try:
         parsed = urlparse(url)
         path = parsed.path
@@ -104,40 +91,45 @@ def download_js_file(url, save_dir, existing_hashes, existing_filenames):
             content = resp.content
             file_hash = get_file_hash(content)
 
+            # ===== 第一步：检查文件名是否已存在 =====
             if filename in existing_filenames:
                 existing_hash = existing_filenames[filename]
-                if existing_hash == file_hash:
-                    logger.info(f"    内容重复，已跳过（与 {filename} 相同）")
-                    return True, filename, True
 
-            if filename in existing_filenames:
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
-                base_name, ext = os.path.splitext(filename)
-                final_filename = f"{base_name}_{timestamp}{ext}"
-                logger.info(f"    文件名冲突，使用时间戳: {final_filename}")
+                # 文件名相同，检查 MD5
+                if existing_hash == file_hash:
+                    # MD5 也相同 → 跳过
+                    logger.info(f"    文件已存在且内容相同，已跳过（{filename}）")
+                    return True, filename, True
+                else:
+                    # MD5 不同 → 加时间戳下载
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
+                    base_name, ext = os.path.splitext(filename)
+                    final_filename = f"{base_name}_{timestamp}{ext}"
+                    logger.info(f"    文件名相同但内容不同，使用时间戳: {final_filename}")
             else:
+                # 文件名不存在 → 直接使用原文件名
                 final_filename = filename
 
+            # 确保文件名不重复（加计数器防冲突）
             counter = 1
             while os.path.exists(os.path.join(save_dir, final_filename)):
                 base_name, ext = os.path.splitext(final_filename)
+                # 如果已经有时间戳，在后面加 _counter
                 if '_' in base_name and re.search(r'\d{8}_\d{6}_\d{3}$', base_name):
                     final_filename = f"{base_name}_{counter}{ext}"
                 else:
                     final_filename = f"{base_name}_{counter}{ext}"
                 counter += 1
 
+            # 保存文件
             filepath = os.path.join(save_dir, final_filename)
             with open(filepath, 'wb') as f:
                 f.write(content)
 
+            # 更新记录
             if filename not in existing_filenames:
                 existing_filenames[filename] = file_hash
-            else:
-                existing_filenames[filename] = file_hash
-
-            if file_hash not in existing_hashes:
-                existing_hashes[file_hash] = final_filename
+            existing_hashes[file_hash] = final_filename
 
             return True, final_filename, False
         else:
@@ -674,8 +666,8 @@ def scan_and_download_js(start_url):
                 visited.add(url)
                 soup = BeautifulSoup(html, 'html.parser')
 
-                # ========== 提取 JS 文件 ==========
-                # 1. 静态 JS
+                # ========== 提取 JS 文件（全部下载，包括外部 CDN 和子域名） ==========
+                # 1. 静态 JS（所有 script src，不管来自哪个域名）
                 for script in soup.find_all('script', src=True):
                     src = script.get('src')
                     if src:
@@ -683,12 +675,12 @@ def scan_and_download_js(start_url):
                         if full_url not in js_urls:
                             js_urls.append(full_url)
 
-                # 2. 动态 JS（Selenium 获取）
+                # 2. 动态 JS（Selenium 获取，全部下载）
                 for js_url in dynamic_js_urls:
                     if js_url not in js_urls:
                         js_urls.append(js_url)
 
-                # 3. 下载 JS 文件
+                # 3. 下载所有 JS 文件（包括外部 CDN 和子域名）
                 for js_url in js_urls:
                     if js_url not in visited:
                         logger.info(f"  下载 JS: {js_url}")
@@ -703,7 +695,7 @@ def scan_and_download_js(start_url):
                         else:
                             logger.warning(f"    下载失败: {result}")
 
-                # ========== 提取外部链接 ==========
+                # ========== 提取外部链接（记录所有非目标域名的链接） ==========
                 # 1. 静态解析
                 static_links = extract_all_external_links_static(soup, url, start_url)
                 for link_url, tag in static_links:
@@ -713,17 +705,20 @@ def scan_and_download_js(start_url):
                 for link_url, tag in dynamic_links:
                     external_links_detail.append((link_url, tag))
 
-                # ========== 提取内部链接，继续爬取 ==========
+                # ========== 提取内部链接，继续爬取（只爬目标域名） ==========
+                start_domain = get_domain_from_url(start_url)
                 for link in soup.find_all('a', href=True):
                     href = link['href']
                     full_url = urljoin(url, href)
 
-                    if not is_external_link(full_url, start_url):
+                    parsed_full = urlparse(full_url)
+                    # 只有完全相同的域名才加入爬取队列
+                    if parsed_full.netloc == start_domain:
                         clean_url = urlunparse(urlparse(full_url)._replace(fragment=''))
                         if clean_url not in visited and clean_url not in queue:
                             queue.append(clean_url)
 
-                # 从 Selenium 提取更多内部链接
+                # 从 Selenium 提取更多内部链接（只爬目标域名）
                 if driver:
                     try:
                         elements = driver.find_elements(By.TAG_NAME, 'a')
@@ -732,7 +727,8 @@ def scan_and_download_js(start_url):
                                 href = elem.get_attribute('href')
                                 if href:
                                     full_url = urljoin(url, href)
-                                    if not is_external_link(full_url, start_url):
+                                    parsed_full = urlparse(full_url)
+                                    if parsed_full.netloc == start_domain:
                                         clean_url = urlunparse(urlparse(full_url)._replace(fragment=''))
                                         if clean_url not in visited and clean_url not in queue:
                                             queue.append(clean_url)

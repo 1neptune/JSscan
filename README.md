@@ -203,24 +203,23 @@ cd www.example.com
 grep -r "bshare" .
 ```
 
-### Configuration
+## Configuration
 
-```bash
-Key configuration options in ScannerConfig (modify in code):
+Key configuration options in `ScannerConfig` (modify in code):
 
-Parameter	Default	Description
-use_selenium	True	Enable Selenium dynamic rendering
-headless_mode	True	Run Chrome in headless mode
-page_load_timeout	10	Page load timeout (seconds)
-dynamic_wait_time	3	Wait time for dynamic content (seconds)
-download_timeout	5	JS download timeout (seconds)
-request_timeout	5	HTTP request timeout (seconds)
-max_file_size	0	Max file size (0 = unlimited)
-allow_mixed_content	True	Allow HTTPS pages to load HTTP resources
-extract_js_from_source	True	Extract JS URLs from page source using regex
-connection_check_timeout	5	Connection check timeout (seconds)
-download_js_extensions	('.js', '.mjs', '.cjs')	JavaScript file extensions to download
-```
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `use_selenium` | `True` | Enable Selenium dynamic rendering |
+| `headless_mode` | `True` | Run Chrome in headless mode |
+| `page_load_timeout` | `10` | Page load timeout (seconds) |
+| `dynamic_wait_time` | `3` | Wait time for dynamic content (seconds) |
+| `download_timeout` | `5` | JS download timeout (seconds) |
+| `request_timeout` | `5` | HTTP request timeout (seconds) |
+| `max_file_size` | `0` | Max file size (0 = unlimited) |
+| `allow_mixed_content` | `True` | Allow HTTPS pages to load HTTP resources |
+| `extract_js_from_source` | `True` | Extract JS URLs from page source using regex |
+| `connection_check_timeout` | `5` | Connection check timeout (seconds) |
+| `download_js_extensions` | `('.js', '.mjs', '.cjs')` | JavaScript file extensions to download |
 
 ### Mixed Content Warnings
 ```bash
@@ -233,19 +232,19 @@ Unexpected Browser Alerts
 The scanner automatically handles unexpected alerts (e.g., Baidu Maps license warnings). If you encounter other alert types, they will be dismissed automatically.
 ```
 
-### How Pattern Deduplication Works
-```bash
+## How Pattern Deduplication Works
+
 The scanner uses intelligent pattern detection to avoid scanning duplicate pages:
 
-URL Pattern	Example URLs	Scanned
-/products/{id}	/products/1, /products/2, /products/3	Only 1
-/catalogue/{id}	/catalogue/product_123, /catalogue/product_456	Only 1
-/news/{id}/	/news/340/, /news/336/, /news/235/	Only 1
-/about-us	/about-us	1 (unique)
-/contact-us/	/contact-us/	1 (unique)
+| URL Pattern | Example URLs | Scanned |
+|-------------|--------------|---------|
+| `/products/{id}` | `/products/1`, `/products/2`, `/products/3` | Only 1 |
+| `/catalogue/{id}` | `/catalogue/product_123`, `/catalogue/product_456` | Only 1 |
+| `/news/{id}/` | `/news/340/`, `/news/336/`, `/news/235/` | Only 1 |
+| `/about-us` | `/about-us` | 1 (unique) |
+| `/contact-us/` | `/contact-us/` | 1 (unique) |
 
-Result: 156 discovered URLs → only 23 actually scanned (85% efficiency improvement)
-```
+**Result**: 156 discovered URLs → only 23 actually scanned (85% efficiency improvement)
 
 ### License
 

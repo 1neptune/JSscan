@@ -23,6 +23,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 import logging
 from typing import Optional, Tuple, List, Set, Dict, Any
 from dataclasses import dataclass
+import argparse  # Added for argument parsing
 
 # ==================== Logging Setup ====================
 
@@ -902,12 +903,58 @@ class Scanner:
 
 # ==================== Main Entry ====================
 
-def main():
-    target = input("Enter website URL (e.g., https://www.example.com): ").strip()
+def get_target_url() -> str:
+    """Get target URL from command line arguments or user input."""
+    parser = argparse.ArgumentParser(
+        description='Malicious JS and External Link Scanner',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+  python scanner.py -u https://example.com    # Scan with URL parameter
+  python scanner.py                            # Interactive mode (asks for URL)
+        '''
+    )
+    parser.add_argument(
+        '-u', '--url',
+        type=str,
+        help='Target website URL to scan (e.g., https://www.example.com)'
+    )
+    parser.add_argument(
+        '--no-selenium',
+        action='store_true',
+        help='Disable Selenium (use static requests only)'
+    )
+
+    args = parser.parse_args()
+
+    # If URL provided via command line, use it
+    if args.url:
+        target = args.url.strip()
+    else:
+        # Interactive mode - ask user for URL
+        target = input("Enter website URL (e.g., https://www.example.com): ").strip()
+
+    # Ensure URL has protocol
     if not target.startswith(('http://', 'https://')):
         target = 'https://' + target
 
+    # Apply config overrides if needed
+    if args.no_selenium:
+        logger.info("Selenium disabled - using static requests only")
+
+    return target, args
+
+
+def main():
+    """Main entry point with argument parsing."""
+    target, args = get_target_url()
+
     config = ScannerConfig()
+
+    # Override config if --no-selenium is specified
+    if args.no_selenium:
+        config.use_selenium = False
+
     scanner = Scanner(config)
     result = scanner.scan(target)
 

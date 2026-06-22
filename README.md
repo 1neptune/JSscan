@@ -115,6 +115,32 @@ Download all JS files locally for in-depth code analysis using grep, IDE, and ot
 ```bash
 pip install requests beautifulsoup4 selenium webdriver-manager
 ```
+## ✨ Features
+
+### Command Line Interface
+- ✅ **-u / --url Parameter** - Specify target URL directly from command line
+- ✅ **--no-selenium Option** - Disable Selenium for static-only crawling
+- ✅ **Interactive Mode** - Run without parameters for guided URL input
+- ✅ **Help Documentation** - `-h` or `--help` for usage instructions
+
+---
+
+## 🚀 Quick Start
+
+### Usage Methods
+
+#### Method 1: Command Line with URL Parameter
+
+```bash
+# Scan a specific URL
+python scanJS.py -u https://www.example.com
+
+# Scan with Selenium disabled (static only)
+python scanJS.py -u https://www.example.com --no-selenium
+
+# View help
+python scanJS.py -h
+```
 
 ### Run
 
@@ -249,5 +275,5 @@ The scanner uses intelligent pattern detection to avoid scanning duplicate pages
 ### License
 
 ```bash
-MIT License
+MIT License - See LICENSE for details.
 ```
